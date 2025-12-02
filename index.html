@@ -117,24 +117,29 @@
         
         async function get_sentiment_label(word) {
             if (sentiment_cache[word] !== undefined) {
+                console.log(`Using cached sentiment for ${word}:`, sentiment_cache[word]);
                 return sentiment_cache[word];
             }
             
             if (!hf_token || hf_token === '__HF_TOKEN__') {
+                console.log('No HF token available, using Neutral');
                 return 'Neutral';
             }
             
             if (!hf_client) {
                 hf_client = new HfInference(hf_token);
+                console.log('HuggingFace client initialised');
             }
             
             try {
+                console.log(`Fetching sentiment for: ${word}`);
                 const result = await hf_client.textClassification({
                     model: "tabularisai/multilingual-sentiment-analysis",
                     inputs: word.toLowerCase()
                 });
                 
                 const label = result[0].label;
+                console.log(`Sentiment for ${word}: ${label}`);
                 sentiment_cache[word] = label;
                 return label;
             } catch (error) {
@@ -300,7 +305,9 @@
             const chosen_synth_index = get_synth_index(label);
             const chosen_synth_config = synth_configs[chosen_synth_index];
             
-            document.body.style.backgroundColor = get_background_color(label);
+            const color = get_background_color(label);
+            console.log(`Playing ${word}: label=${label}, synth_index=${chosen_synth_index}, synth=${chosen_synth_config.name}, colour=${color}`);
+            document.body.style.backgroundColor = color;
             
             synth.disconnect();
             synth.dispose();
