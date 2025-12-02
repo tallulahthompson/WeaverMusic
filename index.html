@@ -115,14 +115,13 @@
         let sentiment_cache = {};
         const hf_token = '__HF_TOKEN__';
         
-        async function get_sentiment(word) {
+        async function get_sentiment_label(word) {
             if (sentiment_cache[word] !== undefined) {
                 return sentiment_cache[word];
             }
             
             if (!hf_token || hf_token === '__HF_TOKEN__') {
-                console.log('No HF token - using neutral sentiment');
-                return 0;
+                return 'Neutral';
             }
             
             if (!hf_client) {
@@ -136,21 +135,11 @@
                 });
                 
                 const label = result[0].label;
-                let sentiment = 0;
-                
-                if (label === "Very Negative" || label === "Negative") {
-                    sentiment = -0.6;
-                } else if (label === "Neutral") {
-                    sentiment = 0;
-                } else if (label === "Positive" || label === "Very Positive") {
-                    sentiment = 0.6;
-                }
-                
-                sentiment_cache[word] = sentiment;
-                return sentiment;
+                sentiment_cache[word] = label;
+                return label;
             } catch (error) {
                 console.error('Sentiment API error:', error);
-                return 0;
+                return 'Neutral';
             }
         }
         
@@ -257,16 +246,19 @@
             };
         }
         
-        async function select_synth_for_word(word) {
-            const sentiment = await get_sentiment(word);
-            
-            if (sentiment < -0.33) {
-                return 1;
-            } else if (sentiment < 0.33) {
+        function get_synth_index(label) {
+            if (label === 'Very Negative' || label === 'Negative') {
                 return 0;
+            } else if (label === 'Neutral') {
+                return 1;
             } else {
                 return 2;
             }
+        }
+        
+        async function select_synth_for_word(word) {
+            const label = await get_sentiment_label(word);
+            return get_synth_index(label);
         }
         
         // Configure signal chain based on word
@@ -296,26 +288,19 @@
             return word.split('').map(letter => letter_to_frequency(letter));
         }
         
-        // Play a chord through signal chain
-        function get_sentiment_color(sentiment) {
-            if (sentiment < -0.33) {
-                return '#d4e4f7';
-            } else if (sentiment < 0.33) {
-                return '#e6d4f7';
-            } else {
-                return 'LavenderBlush';
-            }
+        function get_background_color(label) {
+            const colors = ['#d4e4f7', '#e6d4f7', 'LavenderBlush'];
+            return colors[get_synth_index(label)];
         }
         
         async function play_word_chord(word, note_duration = '1n') {
             await Tone.start();
             
-            const chosen_synth_index = await select_synth_for_word(word);
+            const label = await get_sentiment_label(word);
+            const chosen_synth_index = get_synth_index(label);
             const chosen_synth_config = synth_configs[chosen_synth_index];
             
-            const sentiment = await get_sentiment(word);
-            const color = get_sentiment_color(sentiment);
-            document.body.style.backgroundColor = color;
+            document.body.style.backgroundColor = get_background_color(label);
             
             synth.disconnect();
             synth.dispose();
@@ -341,9 +326,7 @@
             if (!current_path || current_path.length === 0) return;
             
             await Tone.start();
-            const play_button = document.getElementById('playBtn');
             const signal_info_display = document.getElementById('signalInfo');
-            play_button.textContent = 'Playing...';
             
             for (let word_index = 0; word_index < current_path.length; word_index++) {
                 const current_word = current_path[word_index];
@@ -353,7 +336,6 @@
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
             
-            play_button.textContent = 'Play Chords';
             signal_info_display.textContent = 'Sequence complete!';
         }
 
@@ -423,7 +405,6 @@
             const result_div = document.getElementById('result');
             const path_div = document.getElementById('path');
             const title_div = document.getElementById('resultTitle');
-            const play_btn = document.getElementById('playBtn');
             const signal_info = document.getElementById('signalInfo');
             
             path_div.innerHTML = '';
@@ -441,7 +422,6 @@
                         .content(`${index + 1}. ${word}`)
                         .addTo(path_div);
                 });
-                play_btn.style.display = 'inline-block';
             } else {
                 current_path = null;
                 title_div.textContent = 'No solution found';
@@ -449,7 +429,6 @@
                     .set({ className: 'word-item error' })
                     .content('No path exists between these words')
                     .addTo(path_div);
-                play_btn.style.display = 'none';
             }
             
             result_div.classList.add('show');
@@ -487,7 +466,7 @@
             });
         }
         
-        function solve_click() {
+        async function solve_click() {
             const word1_input = document.getElementById('word1');
             const word2_input = document.getElementById('word2');
             const result_div = document.getElementById('result');
@@ -519,9 +498,12 @@
             
             result_div.classList.remove('show');
             
-            setTimeout(() => {
+            setTimeout(async () => {
                 const path = bfs(word1, word2);
                 display_result(path);
+                if (path) {
+                    await play_path_sequence();
+                }
             }, 10);
         }
 
@@ -573,15 +555,6 @@
             .set('id', 'solveBtn')
             .content('Generate Music')
             .on('click', solve_click)
-            .addTo('body');
-        
-        const playBtn = nn.create('button')
-            .set({
-                id: 'playBtn',
-                display: 'none'
-            })
-            .content('Play Chords')
-            .on('click', play_path_sequence)
             .addTo('body');
         
         nn.create('br').addTo('body');
