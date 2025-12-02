@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Music Generator</title>
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+    <style>
+        body {
+            background: LavenderBlush;
+            font-family: 'Open Sans', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        button {
+            font-family: 'Open Sans', sans-serif;
+            font-size: 18px;
+            padding: 15px 30px;
+            margin: 5px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #facae7;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        input[type="text"] {
+            font-family: 'Open Sans', sans-serif;
+            font-size: 16px;
+            padding: 8px;
+            margin: 5px;
+            border: 2px solid #facae7;
+            border-radius: 15px;
+            width: 200px;
+            text-transform: uppercase;
+        }
+        label { 
+            margin: 5px 10px; 
+            color: #8b4789;
+            font-size: 16px;
+        }
+        h1 {
+            color: #8b4789;
+        }
+        h3 {
+            color: #8b4789;
+        }
+        .result {
+            margin-top: 20px;
+            display: none;
+        }
+        .result.show {
+            display: block;
+        }
+        .word-item {
+            margin: 5px 0;
+            color: #8b4789;
+            padding: 8px;
+            background: rgba(250, 202, 231, 0.3);
+            border-radius: 10px;
+            display: inline-block;
+            min-width: 150px;
+        }
+        .word-item.playing {
+            background: #facae7;
+            transform: scale(1.05);
+            transition: all 0.3s ease;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .loading {
+            color: #8b4789;
+            margin-top: 10px;
+            display: none;
+        }
+        .loading.show {
+            display: block;
+        }
+        .status {
+            color: #8b4789;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .signal-info {
+            margin-top: 10px;
+            color: #8b4789;
+            font-size: 14px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/gh/netizenorg/netnet-standard-library/build/nn.min.js"></script>
+    <script src="https://unpkg.com/tone"></script>
+    <script>
+        /* global nn, Tone */
+        
+        let WORDS = new Set();
+        let currentPath = null;
+        
+        // Define different synth configurations with distinct timbres
+        const synthConfigs = [
+            {
+                name: 'Marimba',
+                type: 'Synth',
+                config: {
+                    oscillator: {
+                        partials: [1, 0, 2, 0, 3]
+                    },
+                    envelope: {
+                        attack: 0.001,
+                        decay: 1.2,
+                        sustain: 0,
+                        release: 1.2
+                    }
+                }
+            },
+            {
+                name: 'Harmonics',
+                type: 'AMSynth',
+                config: {
+                    harmonicity: 3.999,
+                    oscillator: { type: 'square' },
+                    envelope: {
+                        attack: 0.03,
+                        decay: 0.3,
+                        sustain: 0.7,
+                        release: 0.8
+                    },
+                    modulation: {
+                        volume: 12,
+                        type: 'square6'
+                    },
+                    modulationEnvelope: {
+                        attack: 2,
+                        decay: 3,
+                        sustain: 0.8,
+                        release: 0.1
+                    }
+                }
+            },
+            {
+                name: 'Electric Cello',
+                type: 'FMSynth',
+                config: {
+                    harmonicity: 3.01,
+                    modulationIndex: 14,
+                    oscillator: { type: 'triangle' },
+                    envelope: {
+                        attack: 0.2,
+                        decay: 0.3,
+                        sustain: 0.1,
+                        release: 1.2
+                    },
+                    modulation: { type: 'square' },
+                    modulationEnvelope: {
+                        attack: 0.01,
+                        decay: 0.5,
+                        sustain: 0.2,
+                        release: 0.1
+                    }
+                }
+            },
+            {
+                name: 'FM Bell',
+                type: 'FMSynth',
+                config: {
+                    harmonicity: 8,
+                    modulationIndex: 2,
+                    oscillator: {
+                        type: 'sine'
+                    },
+                    envelope: {
+                        attack: 0.001,
+                        decay: 2,
+                        sustain: 0.1,
+                        release: 2
+                    },
+                    modulation: {
+                        type: 'square'
+                    },
+                    modulationEnvelope: {
+                        attack: 0.002,
+                        decay: 0.2,
+                        sustain: 0,
+                        release: 0.2
+                    }
+                }
+            }
+        ];
+        
+        let synth = null;
+        let tremolo = null;
+        let vibrato = null;
+        
+        function init_audio() {
+            if (!synth) {
+                synth = new Tone.PolySynth(Tone.Synth, synthConfigs[0].config).toDestination();
+                
+                tremolo = new Tone.Tremolo(9, 0.5).start();
+                vibrato = new Tone.Vibrato(5, 0.1);
+                
+                synth.disconnect();
+                synth.connect(tremolo);
+                tremolo.connect(vibrato);
+                vibrato.toDestination();
+            }
+        }
+        
+        function analyse_word(word) {
+            const vowels = 'AEIOU';
+            const number_of_vowels = word.split('').filter(character => vowels.includes(character)).length;
+            const letter_position_sum = word.split('').reduce((total, character) => total + (character.charCodeAt(0) - 64), 0);
+            const number_of_unique_letters = new Set(word.split('')).size;
+            
+            return {
+                number_of_vowels,
+                letter_position_sum,
+                number_of_unique_letters,
+                vowel_ratio: number_of_vowels / word.length
+            };
+        }
+        
+        // Use alphabetical sum to pick synth 
+        function select_synth_for_word(word) {
+            const word_properties = analyse_word(word);
+            const synth_index = word_properties.letter_position_sum % synthConfigs.length;
+            return synth_index;
+        }
+        
+        // Configure signal chain based on word
+        function configure_signal_chain(word) {
+            const word_properties = analyse_word(word);
+            
+            const effect_frequency = 4 + (word_properties.number_of_unique_letters);
+            const tremolo_depth = 0.2 + (word_properties.number_of_vowels / 10);
+            const vibrato_depth = 0.05 + (word_properties.number_of_vowels / 30);
+            
+            tremolo.frequency.value = effect_frequency;
+            tremolo.depth.value = tremolo_depth;
+            vibrato.frequency.value = effect_frequency;
+            vibrato.depth.value = vibrato_depth;
+        }
+        
+        // Map each letter A-Z to a frequency
+        function letter_to_frequency(letter) {
+            const position_in_alphabet = letter.charCodeAt(0) - 65;
+            const base_frequency = 130.81; // C3
+            const semitone_ratio = Math.pow(2, 1/12);
+            return base_frequency * Math.pow(semitone_ratio, position_in_alphabet % 12) * Math.pow(2, Math.floor(position_in_alphabet / 12));
+        }
+        
+        // Convert word to chord (array of frequencies)
+        function word_to_chord(word) {
+            return word.split('').map(letter => letter_to_frequency(letter));
+        }
+        
+        // Play a chord through signal chain
+        async function play_word_chord(word, note_duration = '1n') {
+            await Tone.start();
+            
+            const chosen_synth_index = select_synth_for_word(word);
+            const chosen_synth_config = synthConfigs[chosen_synth_index];
+            
+            synth.disconnect();
+            synth.dispose();
+            
+            if (chosen_synth_config.type === 'AMSynth') {
+                synth = new Tone.PolySynth(Tone.AMSynth, chosen_synth_config.config);
+            } else if (chosen_synth_config.type === 'FMSynth') {
+                synth = new Tone.PolySynth(Tone.FMSynth, chosen_synth_config.config);
+            } else {
+                synth = new Tone.PolySynth(Tone.Synth, chosen_synth_config.config);
+            }
+            
+            synth.connect(tremolo);
+            
+            configure_signal_chain(word);
+            
+            const chord_frequencies = word_to_chord(word);
+            
+            synth.triggerAttackRelease(chord_frequencies, note_duration);
+        }
+        
+        async function play_path_sequence() {
+            if (!currentPath || currentPath.length === 0) return;
+            
+            await Tone.start();
+            const play_button = document.getElementById('playBtn');
+            const signal_info_display = document.getElementById('signalInfo');
+            play_button.disabled = true;
+            play_button.textContent = 'Playing...';
+            
+            for (let word_index = 0; word_index < currentPath.length; word_index++) {
+                const current_word = currentPath[word_index];
+                
+                await play_word_chord(current_word, '2n');
+                
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+            
+            play_button.disabled = false;
+            play_button.textContent = 'Play Chords';
+            signal_info_display.textContent = 'Sequence complete!';
+        }
+
+        async function load_words() {
+            try {
+                const response = await fetch('4-letter-words.txt');
+                if (!response.ok) {
+                    throw new Error('Failed to load word list');
+                }
+                const text = await response.text();
+                const words = text.split('\n').map(w => w.trim().toUpperCase()).filter(w => w.length === 4);
+                WORDS = new Set(words);
+            } catch (error) {
+                const status_element = document.getElementById('status');
+                status_element.textContent = 'Error: Could not load 4-letter-words.txt';
+                status_element.style.color = '#e74c3c';
+            }
+        }
+
+        function process_word(word) {
+            return word.toUpperCase().trim();
+        }
+
+        function is_valid_word(word) {
+            return WORDS.has(word);
+        }
+
+        function find_frontier(word) {
+            const frontier = [];
+            for (let i = 0; i < word.length; i++) {
+                for (let char_code = 65; char_code <= 90; char_code++) {
+                    const letter = String.fromCharCode(char_code);
+                    if (letter !== word[i]) {
+                        const new_word = word.substring(0, i) + letter + word.substring(i + 1);
+                        if (is_valid_word(new_word)) {
+                            frontier.push(process_word(new_word));
+                        }
+                    }
+                }
+            }
+            return frontier;
+        }
+
+        function bfs(word1, word2) {
+            const visited = new Set([word1]);
+            const queue = [[word1]];
+            
+            while (queue.length > 0) {
+                const path = queue.shift();
+                const node = path[path.length - 1];
+                
+                if (node === word2) {
+                    return path;
+                }
+                
+                for (const neighbor of find_frontier(node)) {
+                    if (!visited.has(neighbor)) {
+                        visited.add(neighbor);
+                        queue.push([...path, neighbor]);
+                    }
+                }
+            }
+            return null;
+        }
+
+        function display_result(path) {
+            const result_div = document.getElementById('result');
+            const path_div = document.getElementById('path');
+            const title_div = document.getElementById('resultTitle');
+            const play_btn = document.getElementById('playBtn');
+            const signal_info = document.getElementById('signalInfo');
+            
+            path_div.innerHTML = '';
+            signal_info.textContent = '';
+            
+            if (path) {
+                currentPath = path;
+                title_div.textContent = `Solution found in ${path.length - 1} steps:`;
+                path.forEach((word, index) => {
+                    const word_item = nn.create('div')
+                        .set({
+                            className: 'word-item',
+                            'data-word-index': index
+                        })
+                        .content(`${index + 1}. ${word}`)
+                        .addTo(path_div);
+                });
+                play_btn.style.display = 'inline-block';
+            } else {
+                currentPath = null;
+                title_div.textContent = 'No solution found';
+                nn.create('div')
+                    .set({ className: 'word-item error' })
+                    .content('No path exists between these words')
+                    .addTo(path_div);
+                play_btn.style.display = 'none';
+            }
+            
+            result_div.classList.add('show');
+        }
+
+        function solve_click() {
+            const word1_input = document.getElementById('word1');
+            const word2_input = document.getElementById('word2');
+            const result_div = document.getElementById('result');
+            
+            const word1 = process_word(word1_input.value);
+            const word2 = process_word(word2_input.value);
+            
+            if (WORDS.size === 0) {
+                alert('Please wait for the word list to load');
+                return;
+            }
+            
+            if (word1.length !== 4 || word2.length !== 4) {
+                alert('Both words must be exactly 4 letters long');
+                return;
+            }
+            
+            if (!is_valid_word(word1)) {
+                alert(`"${word1}" is not in the word list`);
+                return;
+            }
+            
+            if (!is_valid_word(word2)) {
+                alert(`"${word2}" is not in the word list`);
+                return;
+            }
+            
+            init_audio();
+            
+            result_div.classList.remove('show');
+            
+            setTimeout(() => {
+                const path = bfs(word1, word2);
+                display_result(path);
+            }, 10);
+        }
+
+        nn.create('h1')
+            .content('Word Music Generator')
+            .addTo('body');
+        
+        nn.create('label')
+            .set('for', 'word1')
+            .content('Start Word')
+            .addTo('body');
+        
+        nn.create('input')
+            .set({
+                type: 'text',
+                id: 'word1',
+                maxlength: 4
+            })
+            .addTo('body');
+        
+        nn.create('br').addTo('body');
+        
+        nn.create('label')
+            .set('for', 'word2')
+            .content('End Word')
+            .addTo('body');
+        
+        nn.create('input')
+            .set({
+                type: 'text',
+                id: 'word2',
+                maxlength: 4
+            })
+            .addTo('body');
+        
+        nn.create('br').addTo('body');
+        
+        const solveBtn = nn.create('button')
+            .set('id', 'solveBtn')
+            .content('Generate Music')
+            .on('click', solve_click)
+            .addTo('body');
+        
+        const playBtn = nn.create('button')
+            .set({
+                id: 'playBtn',
+                display: 'none'
+            })
+            .content('Play Chords')
+            .on('click', play_path_sequence)
+            .addTo('body');
+        
+        nn.create('br').addTo('body');
+        
+        nn.create('label')
+            .set({
+                className: 'status',
+                id: 'status'
+            })
+            .addTo('body');
+        
+        nn.create('div')
+            .set({
+                className: 'result',
+                id: 'result'
+            })
+            .addTo('body');
+        
+        nn.create('h3')
+            .set('id', 'resultTitle')
+            .content('Solution Path:')
+            .addTo('#result');
+        
+        nn.create('div')
+            .set({
+                className: 'path',
+                id: 'path'
+            })
+            .addTo('#result');
+        
+        nn.create('div')
+            .set({
+                className: 'signal-info',
+                id: 'signalInfo'
+            })
+            .addTo('#result');
+
+        document.getElementById('word1').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('word2').focus();
+        });
+        
+        document.getElementById('word2').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') solve_click();
+        });
+        
+        load_words();
+    </script>
+</body>
+</html>
