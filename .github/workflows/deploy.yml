@@ -21,8 +21,24 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Inject HuggingFace Token
-        run: |
-          sed -i "s/__HF_TOKEN__/${{ secrets.HF_TOKEN }}/g" index.html
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const token = process.env.HF_TOKEN;
+            
+            if (!token) {
+              core.setFailed('HF_TOKEN secret is not set');
+              return;
+            }
+            
+            let content = fs.readFileSync('index.html', 'utf8');
+            content = content.replace(/__HF_TOKEN__/g, token);
+            fs.writeFileSync('index.html', content);
+            
+            console.log('Token injected successfully');
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
