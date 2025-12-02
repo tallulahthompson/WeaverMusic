@@ -47,6 +47,12 @@
         h1 {
             color: #8b4789;
         }
+        h2 {
+            color: #8b4789;
+            font-size: 18px;
+            font-weight: normal;
+            margin: 10px 0 20px 0;
+        }
         h3 {
             color: #8b4789;
         }
@@ -103,6 +109,13 @@
         
         let WORDS = new Set();
         let currentPath = null;
+        
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                word1: params.get('word1')?.toUpperCase() || ''
+            };
+        }
         
         const synthConfigs = [
             {
@@ -405,6 +418,38 @@
             result_div.classList.add('show');
         }
 
+        function share_word() {
+            const word1 = process_word(document.getElementById('word1').value);
+            
+            if (WORDS.size === 0) {
+                alert('Please wait for the word list to load');
+                return;
+            }
+            
+            if (word1.length !== 4) {
+                alert('Please enter a valid 4-letter word first');
+                return;
+            }
+            
+            if (!is_valid_word(word1)) {
+                alert(`"${word1}" is not in the word list`);
+                return;
+            }
+            
+            const share_url = `${window.location.origin}${window.location.pathname}?word1=${word1}`;
+            
+            navigator.clipboard.writeText(share_url).then(() => {
+                const share_btn = document.getElementById('shareBtn');
+                const original_text = share_btn.textContent;
+                share_btn.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    share_btn.textContent = original_text;
+                }, 2000);
+            }).catch(() => {
+                prompt('Copy this URL to share:', share_url);
+            });
+        }
+        
         function solve_click() {
             const word1_input = document.getElementById('word1');
             const word2_input = document.getElementById('word2');
@@ -462,6 +507,12 @@
                 id: 'word1',
                 maxlength: 4
             })
+            .addTo('body');
+        
+        nn.create('button')
+            .set('id', 'shareBtn')
+            .content('📤 Share')
+            .on('click', share_word)
             .addTo('body');
         
         nn.create('br').addTo('body');
@@ -540,6 +591,21 @@
         });
         
         load_words();
+        
+        const params = getQueryParams();
+        if (params.word1) {
+            const word1_input = document.getElementById('word1');
+            const word2_input = document.getElementById('word2');
+            const share_btn = document.getElementById('shareBtn');
+            
+            word1_input.value = params.word1;
+            word1_input.disabled = true;
+            share_btn.style.display = 'none';
+            word2_input.focus();
+            
+            const h2 = document.querySelector('h2');
+            h2.textContent = `Complete the word ladder starting from "${params.word1}"!`;
+        }
     </script>
 </body>
 </html>
