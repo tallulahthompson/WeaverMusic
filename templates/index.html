@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Music Generator</title>
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+    <style>
+        body {
+            background: LavenderBlush;
+            font-family: 'Open Sans', sans-serif;
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.5s ease;
+        }
+        button {
+            font-family: 'Open Sans', sans-serif;
+            font-size: 18px;
+            padding: 15px 30px;
+            margin: 5px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #facae7;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        input[type="text"] {
+            font-family: 'Open Sans', sans-serif;
+            font-size: 16px;
+            padding: 8px;
+            margin: 5px;
+            border: 2px solid #facae7;
+            border-radius: 15px;
+            width: 200px;
+            text-transform: uppercase;
+        }
+        label { 
+            margin: 5px 10px; 
+            color: #8b4789;
+            font-size: 16px;
+        }
+        h1 {
+            color: #8b4789;
+        }
+        h2 {
+            color: #8b4789;
+            font-size: 18px;
+            font-weight: normal;
+            margin: 10px 0 20px 0;
+        }
+        h3 {
+            color: #8b4789;
+        }
+        .result {
+            margin-top: 20px;
+            display: none;
+        }
+        .result.show {
+            display: block;
+        }
+        .word-item {
+            margin: 5px 0;
+            color: #8b4789;
+            padding: 8px;
+            background: rgba(250, 202, 231, 0.3);
+            border-radius: 10px;
+            display: inline-block;
+            min-width: 150px;
+        }
+        .word-item.playing {
+            background: #facae7;
+            transform: scale(1.05);
+            transition: all 0.3s ease;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .loading {
+            color: #8b4789;
+            margin-top: 10px;
+            display: none;
+        }
+        .loading.show {
+            display: block;
+        }
+        .status {
+            color: #8b4789;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .signal-info {
+            margin-top: 10px;
+            color: #8b4789;
+            font-size: 14px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/gh/netizenorg/netnet-standard-library/build/nn.min.js"></script>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="{{ url_for('static', filename='weaver.js') }}"></script>
+</body>
+</html>
