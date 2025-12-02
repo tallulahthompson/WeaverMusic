@@ -5,13 +5,7 @@ from huggingface_hub import InferenceClient
 app = Flask(__name__)
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
-if not HF_TOKEN:
-    print("WARNING: HF_TOKEN not set")
-
-client = InferenceClient(
-    provider="auto",
-    api_key=HF_TOKEN,
-)
+client = InferenceClient(provider="auto", api_key=HF_TOKEN) if HF_TOKEN else None
 
 @app.route("/")
 def index():
@@ -19,7 +13,7 @@ def index():
 
 @app.route("/sentiment", methods=["POST"])
 def sentiment():
-    if not HF_TOKEN:
+    if not client:
         return jsonify({"error": "HF_TOKEN not configured"}), 500
 
     data = request.get_json() or {}

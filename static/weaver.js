@@ -121,34 +121,28 @@ function init_audio() {
 
 function analyse_word(word) {
     const vowels = 'AEIOU';
-    const number_of_vowels = word.split('').filter(character => vowels.includes(character)).length;
-    const letter_position_sum = word.split('').reduce((total, character) => total + (character.charCodeAt(0) - 64), 0);
-    const number_of_unique_letters = new Set(word.split('')).size;
+    const vowel_count = word.split('').filter(character => vowels.includes(character)).length;
+    const unique_letters = new Set(word.split('')).size;
 
     return {
-        number_of_vowels,
-        letter_position_sum,
-        number_of_unique_letters,
-        vowel_ratio: number_of_vowels / word.length
+        vowel_count,
+        unique_letters,
+        vowel_ratio: vowel_count / word.length
     };
 }
 
 function get_synth_index(label) {
-    if (label === 'Very Negative' || label === 'Negative') {
-        return 0;
-    } else if (label === 'Neutral') {
-        return 1;
-    } else {
-        return 2;
-    }
+    if (label === 'Very Negative' || label === 'Negative') return 0;
+    if (label === 'Neutral') return 1;
+    return 2;
 }
 
 function configure_signal_chain(word) {
     const word_properties = analyse_word(word);
 
-    const effect_frequency = 4 + (word_properties.number_of_unique_letters);
-    const tremolo_depth = 0.2 + (word_properties.number_of_vowels / 10);
-    const vibrato_depth = 0.05 + (word_properties.number_of_vowels / 30);
+    const effect_frequency = 4 + word_properties.unique_letters;
+    const tremolo_depth = 0.2 + (word_properties.vowel_count / 10);
+    const vibrato_depth = 0.05 + (word_properties.vowel_count / 30);
 
     tremolo.frequency.value = effect_frequency;
     tremolo.depth.value = tremolo_depth;
@@ -236,10 +230,6 @@ async function load_words() {
     }
 }
 
-function process_word(word) {
-    return word.toUpperCase().trim();
-}
-
 function is_valid_word(word) {
     return WORDS.has(word);
 }
@@ -252,7 +242,7 @@ function find_frontier(word) {
             if (letter !== word[i]) {
                 const new_word = word.substring(0, i) + letter + word.substring(i + 1);
                 if (is_valid_word(new_word)) {
-                    frontier.push(process_word(new_word));
+                    frontier.push(new_word);
                 }
             }
         }
@@ -316,7 +306,7 @@ function display_result(path) {
 }
 
 function share_word() {
-    const word1 = process_word(document.getElementById('word1').value);
+    const word1 = document.getElementById('word1').value.toUpperCase().trim();
 
     if (WORDS.size === 0) {
         alert('Please wait for the word list to load');
@@ -352,8 +342,8 @@ async function solve_click() {
     const word2_input = document.getElementById('word2');
     const result_div = document.getElementById('result');
 
-    const word1 = process_word(word1_input.value);
-    const word2 = process_word(word2_input.value);
+    const word1 = word1_input.value.toUpperCase().trim();
+    const word2 = word2_input.value.toUpperCase().trim();
 
     if (WORDS.size === 0) {
         alert('Please wait for the word list to load');
