@@ -310,16 +310,12 @@
         async function play_word_chord(word, note_duration = '1n') {
             await Tone.start();
             
-            console.log('Playing word:', word);
-            
             const chosen_synth_index = await select_synth_for_word(word);
             const chosen_synth_config = synth_configs[chosen_synth_index];
             
             const sentiment = await get_sentiment(word);
             const color = get_sentiment_color(sentiment);
-            console.log(`Word: ${word}, Sentiment: ${sentiment}, Color: ${color}, Current BG: ${document.body.style.backgroundColor}`);
             document.body.style.backgroundColor = color;
-            console.log(`Applied color: ${document.body.style.backgroundColor}`);
             
             synth.disconnect();
             synth.dispose();
@@ -357,7 +353,6 @@
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
             
-            document.body.style.backgroundColor = 'LavenderBlush';
             play_button.textContent = 'Play Chords';
             signal_info_display.textContent = 'Sequence complete!';
         }
