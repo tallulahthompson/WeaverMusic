@@ -11,6 +11,7 @@
             font-family: 'Open Sans', sans-serif;
             margin: 0;
             padding: 20px;
+            transition: background-color 0.5s ease;
         }
         button {
             font-family: 'Open Sans', sans-serif;
@@ -104,20 +105,63 @@
 <body>
     <script src="https://cdn.jsdelivr.net/gh/netizenorg/netnet-standard-library/build/nn.min.js"></script>
     <script src="https://unpkg.com/tone"></script>
-    <script>
+    <script type="module">
         /* global nn, Tone */
+        import { HfInference } from 'https://cdn.jsdelivr.net/npm/@huggingface/inference@2.7.0/+esm';
         
         let WORDS = new Set();
-        let currentPath = null;
+        let current_path = null;
+        let hf_client = null;
+        let sentiment_cache = {};
+        const hf_token = '__HF_TOKEN__';
         
-        function getQueryParams() {
+        async function get_sentiment(word) {
+            if (sentiment_cache[word] !== undefined) {
+                return sentiment_cache[word];
+            }
+            
+            if (!hf_token || hf_token === '__HF_TOKEN__') {
+                console.log('No HF token - using neutral sentiment');
+                return 0;
+            }
+            
+            if (!hf_client) {
+                hf_client = new HfInference(hf_token);
+            }
+            
+            try {
+                const result = await hf_client.textClassification({
+                    model: "tabularisai/multilingual-sentiment-analysis",
+                    inputs: word.toLowerCase()
+                });
+                
+                const label = result[0].label;
+                let sentiment = 0;
+                
+                if (label === "Very Negative" || label === "Negative") {
+                    sentiment = -0.6;
+                } else if (label === "Neutral") {
+                    sentiment = 0;
+                } else if (label === "Positive" || label === "Very Positive") {
+                    sentiment = 0.6;
+                }
+                
+                sentiment_cache[word] = sentiment;
+                return sentiment;
+            } catch (error) {
+                console.error('Sentiment API error:', error);
+                return 0;
+            }
+        }
+        
+        function get_query_params() {
             const params = new URLSearchParams(window.location.search);
             return {
                 word1: params.get('word1')?.toUpperCase() || ''
             };
         }
         
-        const synthConfigs = [
+        const synth_configs = [
             {
                 name: 'Marimba',
                 type: 'Synth',
@@ -178,32 +222,6 @@
                         release: 0.1
                     }
                 }
-            },
-            {
-                name: 'FM Bell',
-                type: 'FMSynth',
-                config: {
-                    harmonicity: 8,
-                    modulationIndex: 2,
-                    oscillator: {
-                        type: 'sine'
-                    },
-                    envelope: {
-                        attack: 0.001,
-                        decay: 2,
-                        sustain: 0.1,
-                        release: 2
-                    },
-                    modulation: {
-                        type: 'square'
-                    },
-                    modulationEnvelope: {
-                        attack: 0.002,
-                        decay: 0.2,
-                        sustain: 0,
-                        release: 0.2
-                    }
-                }
             }
         ];
         
@@ -213,7 +231,7 @@
         
         function init_audio() {
             if (!synth) {
-                synth = new Tone.PolySynth(Tone.Synth, synthConfigs[0].config).toDestination();
+                synth = new Tone.PolySynth(Tone.Synth, synth_configs[0].config).toDestination();
                 
                 tremolo = new Tone.Tremolo(9, 0.5).start();
                 vibrato = new Tone.Vibrato(5, 0.1);
@@ -239,11 +257,16 @@
             };
         }
         
-        // Use alphabetical sum to pick synth 
-        function select_synth_for_word(word) {
-            const word_properties = analyse_word(word);
-            const synth_index = word_properties.letter_position_sum % synthConfigs.length;
-            return synth_index;
+        async function select_synth_for_word(word) {
+            const sentiment = await get_sentiment(word);
+            
+            if (sentiment < -0.33) {
+                return 1;
+            } else if (sentiment < 0.33) {
+                return 0;
+            } else {
+                return 2;
+            }
         }
         
         // Configure signal chain based on word
@@ -274,11 +297,28 @@
         }
         
         // Play a chord through signal chain
+        function get_sentiment_color(sentiment) {
+            if (sentiment < -0.33) {
+                return '#d4e4f7';
+            } else if (sentiment < 0.33) {
+                return '#e6d4f7';
+            } else {
+                return 'LavenderBlush';
+            }
+        }
+        
         async function play_word_chord(word, note_duration = '1n') {
             await Tone.start();
             
-            const chosen_synth_index = select_synth_for_word(word);
-            const chosen_synth_config = synthConfigs[chosen_synth_index];
+            console.log('Playing word:', word);
+            
+            const chosen_synth_index = await select_synth_for_word(word);
+            const chosen_synth_config = synth_configs[chosen_synth_index];
+            
+            const sentiment = await get_sentiment(word);
+            const color = get_sentiment_color(sentiment);
+            document.body.style.backgroundColor = color;
+            console.log(`Word: ${word}, Sentiment: ${sentiment.toFixed(2)}, Color: ${color}`);
             
             synth.disconnect();
             synth.dispose();
@@ -301,21 +341,22 @@
         }
         
         async function play_path_sequence() {
-            if (!currentPath || currentPath.length === 0) return;
+            if (!current_path || current_path.length === 0) return;
             
             await Tone.start();
             const play_button = document.getElementById('playBtn');
             const signal_info_display = document.getElementById('signalInfo');
             play_button.textContent = 'Playing...';
             
-            for (let word_index = 0; word_index < currentPath.length; word_index++) {
-                const current_word = currentPath[word_index];
+            for (let word_index = 0; word_index < current_path.length; word_index++) {
+                const current_word = current_path[word_index];
                 
                 await play_word_chord(current_word, '2n');
                 
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
             
+            document.body.style.backgroundColor = 'LavenderBlush';
             play_button.textContent = 'Play Chords';
             signal_info_display.textContent = 'Sequence complete!';
         }
@@ -393,7 +434,7 @@
             signal_info.textContent = '';
             
             if (path) {
-                currentPath = path;
+                current_path = path;
                 title_div.textContent = `Solution found in ${path.length - 1} steps:`;
                 path.forEach((word, index) => {
                     const word_item = nn.create('div')
@@ -406,7 +447,7 @@
                 });
                 play_btn.style.display = 'inline-block';
             } else {
-                currentPath = null;
+                current_path = null;
                 title_div.textContent = 'No solution found';
                 nn.create('div')
                     .set({ className: 'word-item error' })
@@ -592,7 +633,7 @@
         
         load_words();
         
-        const params = getQueryParams();
+        const params = get_query_params();
         if (params.word1) {
             const word1_input = document.getElementById('word1');
             const word2_input = document.getElementById('word2');
