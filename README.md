@@ -1,2 +1,2 @@
 # WeaverMusic
-◕ ◞ ◕ This project was made using https://netnet.studio
+https://tallulahthompson.github.io/WeaverMusic/
