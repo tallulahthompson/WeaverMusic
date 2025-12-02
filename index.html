@@ -317,8 +317,9 @@
             
             const sentiment = await get_sentiment(word);
             const color = get_sentiment_color(sentiment);
+            console.log(`Word: ${word}, Sentiment: ${sentiment}, Color: ${color}, Current BG: ${document.body.style.backgroundColor}`);
             document.body.style.backgroundColor = color;
-            console.log(`Word: ${word}, Sentiment: ${sentiment.toFixed(2)}, Color: ${color}`);
+            console.log(`Applied color: ${document.body.style.backgroundColor}`);
             
             synth.disconnect();
             synth.dispose();
