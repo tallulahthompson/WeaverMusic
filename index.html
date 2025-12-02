@@ -104,7 +104,6 @@
         let WORDS = new Set();
         let currentPath = null;
         
-        // Define different synth configurations with distinct timbres
         const synthConfigs = [
             {
                 name: 'Marimba',
@@ -294,7 +293,6 @@
             await Tone.start();
             const play_button = document.getElementById('playBtn');
             const signal_info_display = document.getElementById('signalInfo');
-            play_button.disabled = true;
             play_button.textContent = 'Playing...';
             
             for (let word_index = 0; word_index < currentPath.length; word_index++) {
@@ -305,7 +303,6 @@
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
             
-            play_button.disabled = false;
             play_button.textContent = 'Play Chords';
             signal_info_display.textContent = 'Sequence complete!';
         }
@@ -447,7 +444,11 @@
         }
 
         nn.create('h1')
-            .content('Word Music Generator')
+            .content('Word Weaver Music')
+            .addTo('body');
+        
+        nn.create('h2')
+            .content('Enter 2 words (must be 4 letters long)')
             .addTo('body');
         
         nn.create('label')
